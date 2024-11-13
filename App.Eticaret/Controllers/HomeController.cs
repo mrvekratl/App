@@ -1,8 +1,8 @@
-using App.Admin.Models;
+using App.Eticaret.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 
-namespace App.Admin.Controllers
+namespace App.Eticaret.Controllers
 {
     public class HomeController : Controller
     {
