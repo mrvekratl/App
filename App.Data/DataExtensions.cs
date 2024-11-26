@@ -13,7 +13,7 @@ namespace App.Data
                 options.UseSqlServer(connectionString);
             });
 
-            services.AddScoped(typeof(DataRepository<>));
+            services.AddScoped<IDataRepository, DataRepository>();
         }
     }
 }

@@ -6,6 +6,5 @@ namespace App.Eticaret.Models.ViewModels
     {
         [Required, MinLength(10), MaxLength(250), DataType(DataType.MultilineText)]
         public string Address { get; set; } = null!;
-        public int? UserId { get; set; }
     }
 }

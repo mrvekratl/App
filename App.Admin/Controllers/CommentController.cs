@@ -5,7 +5,7 @@ namespace App.Admin.Controllers
 {
     [Route("/comment")]
     [Authorize(Roles = "admin")]
-    public class CommentController() : Controller
+    public class CommentController : Controller
     {
         [Route("")]
         [HttpGet]

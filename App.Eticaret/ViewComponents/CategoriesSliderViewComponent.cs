@@ -1,28 +1,24 @@
-﻿using App.Data.Entities;
-using App.Data.Infrastructure;
-using App.Eticaret.Models.ViewModels;
+﻿using App.Eticaret.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace App.Eticaret.ViewComponents
 {
-    public class CategoriesSliderViewComponent(DataRepository<ProductEntity> repo) : ViewComponent
+    public class CategoriesSliderViewComponent(IHttpClientFactory clientFactory) : ViewComponent
     {
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+
         public async Task<IViewComponentResult> InvokeAsync()
         {
-            var categories = await repo.GetAll()
-                .GroupBy(p => p.CategoryId)
-                .Select(g => new CategorySliderViewModel
-                {
-                    Id = g.First().Category.Id,
-                    Name = g.First().Category.Name,
-                    Color = g.First().Category.Color,
-                    IconCssClass = g.First().Category.IconCssClass,
-                    ImageUrl = g.First().Images.Count != 0 ? g.First().Images.First().Url : null
-                })
-                .ToListAsync();
+            var response = await Client.GetAsync("categories/slider");
 
-            return View(categories);
+            if (!response.IsSuccessStatusCode)
+            {
+                return Content("Veri alınamadı.");
+            }
+
+            var model = await response.Content.ReadFromJsonAsync<List<CategorySliderViewModel>>();
+
+            return View(model);
         }
     }
 }

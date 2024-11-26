@@ -1,21 +1,14 @@
-﻿using App.Data.Entities;
-using App.Data.Infrastructure;
-using App.Eticaret.Models.ViewModels;
+﻿using App.Eticaret.Models.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Net.Http;
 
 namespace App.Eticaret.Controllers
 {
     [Authorize(Roles = "seller, buyer")]
-    public class ProfileController : BaseController
+    public class ProfileController(IHttpClientFactory clientFactory) : BaseController
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-        public ProfileController(IHttpClientFactory httpClientFactory)
-        {
-            _httpClientFactory = httpClientFactory;
-        }
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+
         [HttpGet("/profile")]
         public async Task<IActionResult> Details()
         {
@@ -26,8 +19,7 @@ namespace App.Eticaret.Controllers
                 return RedirectToAction("Login", "Auth");
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
-            var response = await client.GetAsync($"/api/profile/details?userId={userId.Value}");
+            var response = await Client.GetAsync($"/user/{userId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -36,12 +28,12 @@ namespace App.Eticaret.Controllers
 
             var userViewModel = await response.Content.ReadFromJsonAsync<ProfileDetailsViewModel>();
 
-            if (userViewModel == null)
+            if (userViewModel is null)
             {
                 return RedirectToAction("Login", "Auth");
             }
 
-            string? previousSuccessMessage = TempData["SuccessMessage"]?.ToString();
+            string? previousSuccessMessage = TempData["SuccessMessage"] as string;
 
             if (previousSuccessMessage is not null)
             {
@@ -71,15 +63,24 @@ namespace App.Eticaret.Controllers
                 return View(editMyProfileModel);
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
-            var response = await client.PostAsJsonAsync("/api/profile/edit", editMyProfileModel);
+            user.FirstName = editMyProfileModel.FirstName;
+            user.LastName = editMyProfileModel.LastName;
+
+            if (!string.IsNullOrWhiteSpace(editMyProfileModel.Password) && editMyProfileModel.Password != "******")
+            {
+                user.Password = editMyProfileModel.Password;
+            }
+
+            var response = await Client.PutAsJsonAsync($"/user/{user.Id}", user);
 
             if (!response.IsSuccessStatusCode)
             {
-                return BadRequest("Failed to update profile.");
+                ModelState.AddModelError(string.Empty, "Bir hata oluştu. Lütfen tekrar deneyin.");
+                return View(editMyProfileModel);
             }
 
             TempData["SuccessMessage"] = "Profiliniz başarıyla güncellendi.";
+
             return RedirectToAction(nameof(Details));
         }
 
@@ -93,8 +94,7 @@ namespace App.Eticaret.Controllers
                 return RedirectToAction("Login", "Auth");
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
-            var response = await client.GetAsync($"/api/profile/my-orders?userId={userId.Value}");
+            var response = await Client.GetAsync($"/user/{userId}/orders");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -103,7 +103,7 @@ namespace App.Eticaret.Controllers
 
             var orders = await response.Content.ReadFromJsonAsync<List<OrderViewModel>>();
 
-            return View(orders);
+            return View(orders ?? []);
         }
 
         [HttpGet("/my-products")]
@@ -117,9 +117,7 @@ namespace App.Eticaret.Controllers
                 return RedirectToAction("Login", "Auth");
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
-            var response = await client.GetAsync($"/api/profile/my-products?userId={userId.Value}");
-
+            var response = await Client.GetAsync($"/products?sellerId={userId}");
             if (!response.IsSuccessStatusCode)
             {
                 return RedirectToAction("Login", "Auth");
@@ -127,7 +125,7 @@ namespace App.Eticaret.Controllers
 
             var products = await response.Content.ReadFromJsonAsync<List<MyProductsViewModel>>();
 
-            return View(products);
+            return View(products ?? []);
         }
     }
 }

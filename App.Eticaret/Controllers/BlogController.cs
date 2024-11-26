@@ -1,39 +1,52 @@
-﻿using App.Data.Entities;
-using App.Data.Infrastructure;
+﻿using App.Eticaret.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 
 namespace App.Eticaret.Controllers
 {
-    public class BlogController : BaseController
+    [Route("blog")]
+    public class BlogController(IHttpClientFactory clientFactory) : BaseController
     {
-        [HttpGet("blog")]
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+
+        [HttpGet]
         public async Task<IActionResult> Index()
         {
-            // TODO: remove comment after seeding data
-            //var viewModel = await _dbContext.Blogs
-            //    .Where(e => e.Enabled)
-            //    .OrderByDescending(e => e.CreatedAt)
-            //    .Take(6)
-            //    .Select(e => new BlogSummaryViewModel
-            //    {
-            //        Id = e.Id,
-            //        Title = e.Title,
-            //        SummaryContent = e.Content.Substring(0, 100),
-            //        ImageUrl = e.ImageUrl,
-            //        CommentCount = e.Comments.Count,
-            //        CreatedAt = e.CreatedAt
-            //    })
-            //    .ToListAsync();
+            // TODO: seed data in api project
+            var response = await Client.GetAsync("blog");
+            if (!response.IsSuccessStatusCode)
+            {
+                return StatusCode((int)response.StatusCode);
+            }
+            var content = await response.Content.ReadFromJsonAsync<List<BlogSummaryViewModel>>();
+            if (content == null)
+            {
+                return NotFound();
+            }
 
-            //return View(viewModel);
-
-            return View();
+            return View(content);
         }
 
-        [HttpGet("blog/{id}")]
-        public IActionResult Detail(int id)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> Detail(int id)
         {
-            return View();
+            if (!ModelState.IsValid)
+            {
+                return BadRequest();
+            }
+
+            var response = await Client.GetAsync($"blog/{id}");
+            if (!response.IsSuccessStatusCode)
+            {
+                return StatusCode((int)response.StatusCode);
+            }
+
+            var content = await response.Content.ReadFromJsonAsync<BlogDetailViewModel>();
+            if (content == null)
+            {
+                return NotFound();
+            }
+
+            return View(content);
         }
     }
 }

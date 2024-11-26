@@ -23,11 +23,6 @@ public class ProductEntity : EntityBase, IHasEnabled
 
     public ICollection<ProductImageEntity> Images { get; set; } = null!;
     public ICollection<ProductCommentEntity> Comments { get; set; } = null!;
-
-    public bool Any()
-    {
-        throw new NotImplementedException();
-    }
 }
 
 internal class ProductEntityConfiguration : IEntityTypeConfiguration<ProductEntity>

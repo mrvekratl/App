@@ -13,11 +13,6 @@ public class OrderEntity : EntityBase
     public UserEntity User { get; set; } = null!;
 
     public ICollection<OrderItemEntity> OrderItems { get; set; } = [];
-
-    public bool Any()
-    {
-        throw new NotImplementedException();
-    }
 }
 
 internal class OrderEntityConfiguration : IEntityTypeConfiguration<OrderEntity>

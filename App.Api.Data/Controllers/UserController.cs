@@ -1,85 +1,107 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using App.Api.Data.Models;
 using App.Data.Entities;
 using App.Data.Infrastructure;
-using App.Api.Data.Models.ViewModels;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-namespace App.Api.Controllers
-{
-    [Route("api/users")]
-    [ApiController]
-    [Authorize(Roles = "admin")]
-    public class UserController : ControllerBase
-    {
-        private readonly DataRepository<UserEntity> _userRepo;
 
-        public UserController(DataRepository<UserEntity> userRepo)
+namespace App.Api.Data.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class UserController(IDataRepository dataRepository) : ControllerBase
+    {
+
+        [HttpPost("login", Name = "GetUser")]
+        public async Task<IActionResult> Get([FromBody] LoginDto login)
         {
-            _userRepo = userRepo;
+
+            if (string.IsNullOrEmpty(login.Email) || string.IsNullOrEmpty(login.Password))
+            {
+                return BadRequest();
+            }
+
+            var user = await dataRepository.GetAll<UserEntity>()
+                .Include(u => u.Role)
+                .SingleOrDefaultAsync(u => u.Email == login.Email && u.Password == login.Password);
+
+            if (user is null)
+            {
+                return NotFound();
+            }
+
+            user.Password = string.Empty;
+            user.ResetPasswordToken = string.Empty;
+
+            return Ok(user);
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> Get()
         {
-            var users = await _userRepo.GetAll()
-                .Where(u => u.RoleId != 1) // Exclude admins
-                .Select(u => new UserListItemViewModel
-                {
-                    Id = u.Id,
-                    FirstName = u.FirstName,
-                    LastName = u.LastName,
-                    Email = u.Email,
-                    Role = u.Role.Name,
-                    Enabled = u.Enabled,
-                    HasSellerRequest = u.HasSellerRequest
-                })
+            var users = await dataRepository.GetAll<UserEntity>()
+                .Include(u => u.Role)
                 .ToListAsync();
+
+            foreach (var user in users)
+            {
+                user.Password = string.Empty;
+                user.ResetPasswordToken = string.Empty;
+            }
 
             return Ok(users);
         }
 
-        [HttpPost("{id:int}/approve-seller")]
-        public async Task<IActionResult> ApproveSellerRequest(int id)
+
+        [HttpGet("reset-password-token/{token}")]
+        public async Task<IActionResult> GetUserByResetToken(string token)
         {
-            var user = await _userRepo.GetByIdAsync(id);
-            if (user == null)
+            var user = await dataRepository.GetAll<UserEntity>()
+                .FirstOrDefaultAsync(u => u.ResetPasswordToken == token);
+
+            if (user is null)
+            {
                 return NotFound();
+            }
 
-            if (!user.HasSellerRequest)
-                return BadRequest("No seller request found for this user.");
+            user.Password = string.Empty;
+            user.ResetPasswordToken = string.Empty;
 
-            user.HasSellerRequest = false;
-            user.RoleId = 2; // Seller role
-            await _userRepo.UpdateAsync(user);
-
-            return Ok("Seller request approved.");
+            return Ok(user);
         }
 
-        [HttpPost("{id:int}/enable")]
-        public async Task<IActionResult> EnableUser(int id)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> Get(int id)
         {
-            var user = await _userRepo.GetByIdAsync(id);
-            if (user == null)
+            var user = await dataRepository.GetByIdAsync<UserEntity>(id);
+
+            if (user is null)
+            {
                 return NotFound();
+            }
 
-            user.Enabled = true;
-            await _userRepo.UpdateAsync(user);
+            user.Password = string.Empty;
+            user.ResetPasswordToken = string.Empty;
 
-            return Ok("User enabled.");
+            return Ok(user);
         }
 
-        [HttpPost("{id:int}/disable")]
-        public async Task<IActionResult> DisableUser(int id)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Put(int id, [FromBody] UserEntity user)
         {
-            var user = await _userRepo.GetByIdAsync(id);
-            if (user == null)
-                return NotFound();
+            if (id != user.Id)
+            {
+                return BadRequest();
+            }
 
-            user.Enabled = false;
-            await _userRepo.UpdateAsync(user);
+            await dataRepository.UpdateAsync(user);
+            return NoContent();
+        }
 
-            return Ok("User disabled.");
+        [HttpPost]
+        public async Task<IActionResult> Post([FromBody] UserEntity user)
+        {
+            user = await dataRepository.AddAsync(user);
+            return CreatedAtRoute("GetUser", new { id = user.Id }, user);
         }
     }
 }
-

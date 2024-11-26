@@ -1,20 +1,14 @@
 ﻿using App.Data.Entities;
-using App.Data.Infrastructure;
 using App.Eticaret.Models.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace App.Eticaret.Controllers
 {
     [Authorize(Roles = "buyer, seller")]
-    public class CartController : BaseController
+    public class CartController(IHttpClientFactory clientFactory) : BaseController
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-        public CartController(IHttpClientFactory httpClientFactory)
-        {
-            _httpClientFactory = httpClientFactory;
-        }
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
 
         [HttpGet("/add-to-cart/{productId:int}")]
         public async Task<IActionResult> AddProduct([FromRoute] int productId)
@@ -26,29 +20,61 @@ namespace App.Eticaret.Controllers
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
 
-            // Ürün var mı kontrolü
-            var client = _httpClientFactory.CreateClient("ProductService");
-            var productExists = await client.GetFromJsonAsync<bool>($"/api/products/exists/{productId}");
+            var response = await Client.GetAsync($"/products/{productId}");
 
-            if (!productExists)
+            if (!response.IsSuccessStatusCode)
             {
-                return NotFound("Product does not exist.");
+                return NotFound();
             }
 
-            // Cart API'ye ürün ekleme
-            var addCartItemResponse = await client.PostAsJsonAsync("/api/cart-items/add", new
-            {
-                UserId = userId,
-                ProductId = productId,
-                Quantity = 1
-            });
+            var product = await response.Content.ReadFromJsonAsync<ProductEntity>();
 
-            if (!addCartItemResponse.IsSuccessStatusCode)
+            if (product is null)
             {
-                return StatusCode((int)addCartItemResponse.StatusCode, await addCartItemResponse.Content.ReadAsStringAsync());
+                return NotFound();
             }
 
-            return RedirectToAction(nameof(Edit));
+            response = await Client.GetAsync($"/user/{userId}/cart/?productId={productId}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var cartItem = await response.Content.ReadFromJsonAsync<CartItemEntity>();
+
+                if (cartItem is not null)
+                {
+                    cartItem.Quantity++;
+                }
+                else
+                {
+                    cartItem = new CartItemEntity
+                    {
+                        UserId = userId.Value,
+                        ProductId = productId,
+                        Quantity = 1,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    response = await Client.PostAsJsonAsync("/user/cart", cartItem);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        return BadRequest();
+                    }
+                }
+            }
+            else
+            {
+                return BadRequest();
+            }
+
+            var prevUrl = Request.Headers.Referer.FirstOrDefault();
+
+            if (prevUrl is null)
+            {
+                return RedirectToAction(nameof(Edit));
+            }
+
+            return Redirect(prevUrl);
         }
 
         [HttpGet("/cart")]
@@ -61,11 +87,9 @@ namespace App.Eticaret.Controllers
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
 
-            // Sepet içeriği API'den alınıyor
-            var client = _httpClientFactory.CreateClient("CartService");
-            var cartItemsResponse = await client.GetFromJsonAsync<List<CartItemViewModel>>($"/api/cart-items/{userId}");
+            List<CartItemViewModel> cartItem = await GetCartItemsAsync();
 
-            return View(cartItemsResponse);
+            return View(cartItem);
         }
 
         [HttpGet("/cart/{cartItemId:int}/remove")]
@@ -78,13 +102,25 @@ namespace App.Eticaret.Controllers
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
 
-            // Cart API'ye ürün silme isteği
-            var client = _httpClientFactory.CreateClient("CartService");
-            var removeResponse = await client.DeleteAsync($"/api/cart-items/{cartItemId}");
+            var response = await Client.GetAsync($"/user/{userId}/cart/{cartItemId}");
 
-            if (!removeResponse.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                return StatusCode((int)removeResponse.StatusCode, await removeResponse.Content.ReadAsStringAsync());
+                return NotFound();
+            }
+
+            var cartItem = await response.Content.ReadFromJsonAsync<CartItemEntity>();
+
+            if (cartItem is null)
+            {
+                return NotFound();
+            }
+
+            response = await Client.DeleteAsync($"/user/{userId}/cart/{cartItemId}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return BadRequest();
             }
 
             return RedirectToAction(nameof(Edit));
@@ -100,16 +136,39 @@ namespace App.Eticaret.Controllers
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
 
-            // Cart API'ye güncelleme isteği
-            var client = _httpClientFactory.CreateClient("CartService");
-            var response = await client.PutAsJsonAsync("/api/cart-items/update", new { CartItemId = cartItemId, Quantity = quantity });
+            var response = await Client.GetAsync($"/user/{userId}/cart/{cartItemId}");
 
             if (!response.IsSuccessStatusCode)
             {
-                return StatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync());
+                return NotFound();
             }
 
-            return RedirectToAction(nameof(Edit));
+            var cartItem = await response.Content.ReadFromJsonAsync<CartItemEntity>();
+
+            if (cartItem is null)
+            {
+                return NotFound();
+            }
+
+            cartItem.Quantity = quantity;
+
+            response = await Client.PutAsJsonAsync($"/user/{userId}/cart/{cartItemId}", cartItem);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return BadRequest();
+            }
+
+            var model = new CartItemViewModel
+            {
+                Id = cartItem.Id,
+                ProductName = cartItem.Product.Name,
+                ProductImage = cartItem.Product.Images.Count != 0 ? cartItem.Product.Images.First().Url : null,
+                Quantity = cartItem.Quantity,
+                Price = cartItem.Product.Price
+            };
+
+            return View(model);
         }
 
         [HttpGet("/checkout")]
@@ -122,16 +181,25 @@ namespace App.Eticaret.Controllers
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
 
-            // API'ye istek gönderiyoruz
-            var client = _httpClientFactory.CreateClient("CartService");
-            var cartItemsResponse = await client.GetFromJsonAsync<List<CartItemViewModel>>($"/api/cart-items/{userId}");
+            List<CartItemViewModel> cartItems = await GetCartItemsAsync();
 
-            if (cartItemsResponse == null || !cartItemsResponse.Any())
+            return View(cartItems);
+        }
+
+        private async Task<List<CartItemViewModel>> GetCartItemsAsync()
+        {
+            var userId = GetUserId() ?? -1;
+
+            var response = await Client.GetAsync($"/user/{userId}/cart");
+
+            if (!response.IsSuccessStatusCode)
             {
-                return NotFound("Your cart is empty.");
+                return [];
             }
 
-            return View(cartItemsResponse);
+            var cartItems = await response.Content.ReadFromJsonAsync<List<CartItemViewModel>>();
+
+            return cartItems ?? [];
         }
     }
 }

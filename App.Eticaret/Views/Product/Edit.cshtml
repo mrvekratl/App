@@ -1,17 +1,12 @@
 ﻿@using Microsoft.EntityFrameworkCore
 @using App.Data.Entities
 @model SaveProductViewModel
-@inject App.Data.Infrastructure.DataRepository<DiscountEntity> discountRepository
-@inject App.Data.Infrastructure.DataRepository<CategoryEntity> categoryRepository
+@inject IHttpClientFactory clientFactory;
 @{
+    var client = clientFactory.CreateClient("Api.Data");
     ViewData["Title"] = "Edit Product";
-    var discounts = await discountRepository.GetAll()
-                .Where(d => d.Enabled)
-                .Select(d => new DiscountSelectItemViewModel { Id = d.Id, Rate = d.DiscountRate })
-                .ToListAsync();
-    var categories = await categoryRepository.GetAll()
-                .Select(c => new CategorySelectItemViewModel { Id = c.Id, Name = c.Name })
-                .ToListAsync();
+    var discounts = await client.GetFromJsonAsync<List<DiscountSelectItemViewModel>>("Discounts");
+    var categories = await client.GetFromJsonAsync<List<CategorySelectItemViewModel>>("Categories");
 
     var imageUploadModel = new ImageUploadViewModel
     {

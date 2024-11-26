@@ -1,18 +1,13 @@
 using App.Data.Entities;
-using App.Data.Infrastructure;
 using App.Eticaret.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace App.Eticaret.Controllers
 {
-    public class HomeController: BaseController
+    public class HomeController(IHttpClientFactory clientFactory) : BaseController
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-        public HomeController(IHttpClientFactory httpClientFactory)
-        {
-            _httpClientFactory = httpClientFactory;
-        }
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+
         public IActionResult Index()
         {
             return View();
@@ -38,33 +33,40 @@ namespace App.Eticaret.Controllers
                 return View(newContactMessage);
             }
 
-            var client = _httpClientFactory.CreateClient("ContactService");
+            var contactMessageEntity = new ContactFormEntity
+            {
+                Name = newContactMessage.Name,
+                Email = newContactMessage.Email,
+                Message = newContactMessage.Message,
+                SeenAt = null
+            };
 
-            // Contact mesajýný API'ye gönderiyoruz
-            var response = await client.PostAsJsonAsync("/api/contact", newContactMessage);
+            var response = await Client.PostAsJsonAsync("/contact-form", contactMessageEntity);
 
             if (!response.IsSuccessStatusCode)
             {
-                ViewBag.ErrorMessage = "There was an error sending your message.";
+                ViewBag.ErrorMessage = "An error occurred while sending your message. Please try again later.";
                 return View(newContactMessage);
             }
 
-            ViewBag.SuccessMessage = "Your message has been sent successfully.";
+            SetSuccessMessage("Your message has been sent successfully.");
+
             return View();
         }
 
         [HttpGet("/product/list")]
         public async Task<IActionResult> Listing()
         {
-            var client = _httpClientFactory.CreateClient("ProductService");
+            // TODO: add paging support
 
-            // API'ye istek göndererek ürün listesini alýyoruz
-            var products = await client.GetFromJsonAsync<List<ProductListingViewModel>>("/api/products");
+            var response = await Client.GetAsync("/products");
 
-            if (products == null || !products.Any())
+            if (!response.IsSuccessStatusCode)
             {
-                return NotFound("No products found.");
+                return NotFound();
             }
+
+            var products = await response.Content.ReadFromJsonAsync<List<ProductListingViewModel>>();
 
             return View(products);
         }
@@ -72,12 +74,17 @@ namespace App.Eticaret.Controllers
         [HttpGet("/product/{productId:int}/details")]
         public async Task<IActionResult> ProductDetail([FromRoute] int productId)
         {
-            var client = _httpClientFactory.CreateClient("ProductService");
 
-            // API'ye istek göndererek ürün detaylarýný alýyoruz
-            var product = await client.GetFromJsonAsync<HomeProductDetailViewModel>($"/api/products/{productId}");
+            var response = await Client.GetAsync($"/products/{productId}/home");
 
-            if (product == null)
+            if (!response.IsSuccessStatusCode)
+            {
+                return NotFound();
+            }
+
+            var product = await response.Content.ReadFromJsonAsync<HomeProductDetailViewModel>();
+
+            if (product is null)
             {
                 return NotFound();
             }

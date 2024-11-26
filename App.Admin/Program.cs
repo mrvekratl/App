@@ -1,18 +1,14 @@
-using App.Data;
+
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHttpClient("ApiClient", client =>
-{
-    client.BaseAddress = new Uri("https://localhost:7294"); // Admin API URL'si
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-    client.DefaultRequestHeaders.Add("User-Agent", "AdminMVCApp");
-});
 
 builder.Services.AddControllersWithViews();
 
-builder.Services.AddDataLayer(builder.Configuration.GetConnectionString("SqlServer")!);
+builder.Services.AddHttpClient("Api.Data", client =>
+{
+    client.BaseAddress = new Uri("https://localhost:7109");
+});
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

@@ -1,33 +1,27 @@
 ﻿using App.Admin.Models.ViewModels;
 using App.Data.Entities;
-using App.Data.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using System.Text.Json;
 
 namespace App.Admin.Controllers
 {
     [AllowAnonymous]
-    public class AuthController : Controller
+    [Route("/auth")]
+    public class AuthController(IHttpClientFactory clientFactory) : Controller
     {
-        private readonly IHttpClientFactory _httpClientFactory;
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
 
-        public AuthController(IHttpClientFactory httpClientFactory)
-        {
-            _httpClientFactory = httpClientFactory;
-        }
-        [Route("/login")]
+        [Route("login")]
         [HttpGet]
         public IActionResult Login()
         {
             return View();
         }
 
-        [Route("/login")]
+        [Route("login")]
         [HttpPost]
         public async Task<IActionResult> Login([FromForm] LoginViewModel loginModel)
         {
@@ -36,30 +30,33 @@ namespace App.Admin.Controllers
                 return View(loginModel);
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
+            var response = await Client.PostAsJsonAsync("api/user/login", loginModel);
 
-            // API'ye POST isteği gönderiliyor
-            var response = await client.PostAsJsonAsync("api/auth/login", loginModel);
-
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                // API'den dönen kullanıcı bilgilerini okuma
-                var user = await response.Content.ReadFromJsonAsync<UserEntity>();
-
-                // Kullanıcı giriş işlemleri
-                await DoLoginAsync(user);
-
-                return RedirectToAction("Index", "Dashboard");
-            }
-            else
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                ModelState.AddModelError(string.Empty, $"Giriş başarısız: {error}");
+                ModelState.AddModelError(string.Empty, "Kullanıcı adı veya şifre hatalı.");
                 return View(loginModel);
             }
-        }                
 
-        [Route("/logout")]
+            var user = await response.Content.ReadFromJsonAsync<UserEntity>();
+
+            if (user?.Role?.Name != "admin")
+            {
+                ModelState.AddModelError(string.Empty, "Bu sayfaya erişim yetkiniz yok.");
+                return View(loginModel);
+            }
+
+            await DoLoginAsync(user);
+
+            if (Request.Query.ContainsKey("ReturnUrl"))
+            {
+                return Redirect(Request.Query["ReturnUrl"]!);
+            }
+
+            return RedirectToAction(nameof(HomeController.Index), "Home");
+        }
+
+        [Route("logout")]
         [HttpGet]
         [Authorize]
         public async Task<IActionResult> Logout()
@@ -82,6 +79,7 @@ namespace App.Admin.Controllers
                 new(ClaimTypes.Surname, user.LastName),
                 new(ClaimTypes.Email, user.Email),
                 new(ClaimTypes.Role, user.Role.Name),
+                new("RoleId", user.RoleId.ToString()),
             };
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);

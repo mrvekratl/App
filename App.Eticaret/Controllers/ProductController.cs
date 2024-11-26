@@ -1,20 +1,15 @@
 ﻿using App.Data.Entities;
-using App.Data.Infrastructure;
 using App.Eticaret.Models.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace App.Eticaret.Controllers
 {
     [Route("/product")]
-    public class ProductController: BaseController
+    public class ProductController(IHttpClientFactory clientFactory) : BaseController
     {
-        private readonly HttpClient _httpClient;
-        public ProductController(HttpClient httpClient)
-        {
-            _httpClient = httpClient;
-        }
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+
         [HttpGet("")]
         [Authorize(Roles = "seller")]
         public IActionResult Create()
@@ -31,68 +26,46 @@ namespace App.Eticaret.Controllers
                 return View(newProductModel);
             }
 
-            var requestBody = new
-            {
-                newProductModel.Name,
-                newProductModel.Price,
-                newProductModel.Description,
-                newProductModel.StockAmount,
-                newProductModel.CategoryId,
-                newProductModel.DiscountId
-            };
+            var response = await Client.PostAsJsonAsync("/product", newProductModel);
 
-            var response = await _httpClient.PostAsJsonAsync("/api/product", requestBody);
-
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                ViewBag.SuccessMessage = "Ürün başarıyla eklendi.";
-                ModelState.Clear();
-                return RedirectToAction("Index", "Home");
-            }
-            else
-            {
-                ViewBag.ErrorMessage = "Ürün eklerken bir hata oluştu.";
+                ViewBag.ErrorMessage = "An error occurred while creating the product. Please try again later.";
                 return View(newProductModel);
             }
+
+            SetSuccessMessage("Ürün başarıyla eklendi.");
+            ModelState.Clear();
+
+            return View();
         }
-
-        private async Task SaveProductImages(int productId, IList<IFormFile> images)
-        {
-            foreach (var image in images)
-            {
-                var formData = new MultipartFormDataContent();
-                var imageContent = new StreamContent(image.OpenReadStream())
-                {
-                    Headers = { ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg") }
-                };
-                formData.Add(imageContent, "file", image.FileName);
-
-                var response = await _httpClient.PostAsync($"/api/product/{productId}/images", formData);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    throw new Exception("Resim yükleme sırasında bir hata oluştu.");
-                }
-            }
-        }
-
 
         [HttpGet("{productId:int}/edit")]
         [Authorize(Roles = "seller")]
         public async Task<IActionResult> Edit([FromRoute] int productId)
         {
-            var response = await _httpClient.GetAsync($"/api/product/{productId}");
+            if (!ModelState.IsValid)
+            {
+                return View();
+            }
+
+            var response = await Client.GetAsync($"/product/{productId}");
 
             if (!response.IsSuccessStatusCode)
             {
                 return NotFound();
             }
 
-            var productEntity = await response.Content.ReadAsAsync<ProductEntity>();
+            var productEntity = await response.Content.ReadFromJsonAsync<ProductEntity>();
+
+            if (productEntity is null)
+            {
+                return NotFound();
+            }
 
             if (productEntity.SellerId != GetUserId())
             {
-                return Unauthorized();
+                return Forbid();
             }
 
             var viewModel = new SaveProductViewModel
@@ -117,46 +90,89 @@ namespace App.Eticaret.Controllers
                 return View(editProductModel);
             }
 
-            var requestBody = new
-            {
-                editProductModel.Name,
-                editProductModel.Price,
-                editProductModel.Description,
-                editProductModel.StockAmount,
-                editProductModel.CategoryId,
-                editProductModel.DiscountId
-            };
+            var response = await Client.GetAsync($"/product/{productId}");
 
-            var response = await _httpClient.PutAsJsonAsync($"/api/product/{productId}", requestBody);
-
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                ViewBag.SuccessMessage = "Ürün başarıyla güncellendi.";
-                return RedirectToAction("ProductDetail", "Home", new { productId });
+                return NotFound();
             }
-            else
+
+            var productEntity = await response.Content.ReadFromJsonAsync<ProductEntity>();
+
+            if (productEntity is null)
             {
-                ViewBag.ErrorMessage = "Ürün güncellenirken bir hata oluştu.";
+                return NotFound();
+            }
+
+            if (productEntity.SellerId != GetUserId())
+            {
+                return Forbid();
+            }
+
+            productEntity.CategoryId = editProductModel.CategoryId;
+            productEntity.DiscountId = editProductModel.DiscountId;
+            productEntity.Name = editProductModel.Name;
+            productEntity.Price = editProductModel.Price;
+            productEntity.Description = editProductModel.Description;
+            productEntity.StockAmount = editProductModel.StockAmount;
+
+            response = await Client.PutAsJsonAsync($"/product/{productId}", productEntity);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ViewBag.ErrorMessage = "An error occurred while updating the product. Please try again later.";
                 return View(editProductModel);
             }
+
+            ViewBag.SuccessMessage = "Ürün başarıyla güncellendi.";
+            return View(editProductModel);
         }
 
         [HttpGet("{productId:int}/delete")]
         [Authorize(Roles = "seller")]
         public async Task<IActionResult> Delete([FromRoute] int productId)
         {
-            var response = await _httpClient.DeleteAsync($"/api/product/{productId}");
+            if (!ModelState.IsValid)
+            {
+                return BadRequest();
+            }
 
-            if (response.IsSuccessStatusCode)
+            var userId = GetUserId();
+
+            if (userId == null)
             {
-                ViewBag.SuccessMessage = "Ürün başarıyla silindi.";
-                return RedirectToAction("Index", "Home");
+                return Unauthorized();
             }
-            else
+
+            var response = await Client.GetAsync($"/product/{productId}");
+
+            if (!response.IsSuccessStatusCode)
             {
-                ViewBag.ErrorMessage = "Ürün silinirken bir hata oluştu.";
-                return RedirectToAction("Index", "Home");
+                return NotFound();
             }
+
+            var productEntity = await response.Content.ReadFromJsonAsync<ProductEntity>();
+
+            if (productEntity is null)
+            {
+                return NotFound();
+            }
+
+            if (productEntity.SellerId != userId)
+            {
+                return Forbid();
+            }
+
+            response = await Client.DeleteAsync($"/product/{productId}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ViewBag.ErrorMessage = "An error occurred while deleting the product. Please try again later.";
+                return View();
+            }
+
+            SetSuccessMessage("Ürün başarıyla silindi.");
+            return View();
         }
 
         [HttpPost("{productId:int}/comment")]
@@ -175,20 +191,14 @@ namespace App.Eticaret.Controllers
                 return BadRequest();
             }
 
-            var requestBody = new
-            {
-                newProductCommentModel.Text,
-                newProductCommentModel.StarCount
-            };
+            var response = await Client.PostAsJsonAsync($"/products/{productId}/comment", newProductCommentModel);
 
-            var response = await _httpClient.PostAsJsonAsync($"/api/product/{productId}/comment", requestBody);
-
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                return Ok();
+                return NotFound();
             }
 
-            return BadRequest();
+            return Ok();
         }
     }
 }

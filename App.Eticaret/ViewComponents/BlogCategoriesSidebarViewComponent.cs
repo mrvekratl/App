@@ -1,23 +1,22 @@
-﻿using App.Data.Entities;
-using App.Data.Infrastructure;
-using App.Eticaret.Models.ViewModels;
+﻿using App.Eticaret.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace App.Eticaret.ViewComponents
 {
-    public class BlogCategoriesSidebarViewComponent(DataRepository<BlogCategoryEntity> repo) : ViewComponent
+    public class BlogCategoriesSidebarViewComponent(IHttpClientFactory clientFactory) : ViewComponent
     {
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+
         public async Task<IViewComponentResult> InvokeAsync()
         {
-            var model = await repo.GetAll()
-                .Select(c => new BlogCategorySidebarViewModel
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    ArticleCount = c.BlogRelations.Count
-                })
-                .ToListAsync();
+            var response = await Client.GetAsync("blogcategories/sidebar");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return Content("Veri alınamadı.");
+            }
+
+            var model = await response.Content.ReadFromJsonAsync<List<BlogCategorySidebarViewModel>>();
 
             return View(model);
         }

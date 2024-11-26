@@ -2,19 +2,28 @@
 
 namespace App.Data.Infrastructure
 {
-    public class DataRepository<T>(DbContext dbContext) where T : EntityBase
+    public interface IDataRepository
     {
-        public async Task<T?> GetByIdAsync(int id)
+        Task<T?> GetByIdAsync<T>(int id) where T : EntityBase;
+        IQueryable<T> GetAll<T>() where T : EntityBase;
+        Task<T> AddAsync<T>(T entity) where T : EntityBase;
+        Task<T?> UpdateAsync<T>(T entity) where T : EntityBase;
+        Task DeleteAsync<T>(int id) where T : EntityBase;
+    }
+
+    internal class DataRepository(DbContext dbContext) : IDataRepository
+    {
+        public async Task<T?> GetByIdAsync<T>(int id) where T : EntityBase
         {
             return await dbContext.Set<T>().FindAsync(id);
         }
 
-        public IQueryable<T> GetAll()
+        public IQueryable<T> GetAll<T>() where T : EntityBase
         {
             return dbContext.Set<T>();
         }
 
-        public async Task<T> AddAsync(T entity)
+        public async Task<T> AddAsync<T>(T entity) where T : EntityBase
         {
             entity.Id = default;
             entity.CreatedAt = DateTime.UtcNow;
@@ -25,14 +34,14 @@ namespace App.Data.Infrastructure
             return entity;
         }
 
-        public async Task<T?> UpdateAsync(T entity)
+        public async Task<T?> UpdateAsync<T>(T entity) where T : EntityBase
         {
             if (entity.Id == default)
             {
                 return null;
             }
 
-            var dbEntity = await GetByIdAsync(entity.Id);
+            var dbEntity = await GetByIdAsync<T>(entity.Id);
             if (dbEntity == null)
             {
                 return null;
@@ -46,9 +55,9 @@ namespace App.Data.Infrastructure
             return entity;
         }
 
-        public async Task DeleteAsync(int id)
+        public async Task DeleteAsync<T>(int id) where T : EntityBase
         {
-            var entity = await GetByIdAsync(id);
+            var entity = await GetByIdAsync<T>(id);
 
             if (entity == null)
             {

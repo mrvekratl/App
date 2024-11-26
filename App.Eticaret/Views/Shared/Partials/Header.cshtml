@@ -1,13 +1,13 @@
 ﻿@using App.Data.Entities
 @using App.Data.Infrastructure
 @using Microsoft.EntityFrameworkCore
-@inject DataRepository<CartItemEntity> cartItemRepository
+@* @inject DataRepository<CartItemEntity> cartItemRepository *@
 @{
     var IsCurrentPage = (string action, string controller) =>
     {
         var routeData = ViewContext.RouteData.Values;
-        var routeAction = routeData["action"] as string;
-        var routeController = routeData["controller"] as string;
+        var routeAction = routeData["action"] as string ?? throw new ArgumentNullException("action");
+        var routeController = routeData["controller"] as string ?? throw new ArgumentNullException("controller");
 
         if (string.IsNullOrEmpty(action))
         {
@@ -33,13 +33,13 @@
 
     if (IsAuthenticated && int.TryParse(currentUserId, out int userId))
     {
-        var cartItems = await cartItemRepository.GetAll()
-            .Where(x => x.UserId == userId)
-            .Select(x => x.Product.Price * x.Quantity)
-            .ToListAsync();
+        // var cartItems = await cartItemRepository.GetAll()
+        //     .Where(x => x.UserId == userId)
+        //     .Select(x => x.Product.Price * x.Quantity)
+        //     .ToListAsync();
 
-        cartItemCount = cartItems.Count;
-        cartTotalPrice = cartItems.Sum();
+        // cartItemCount = cartItems.Count;
+        // cartTotalPrice = cartItems.Sum();
     }
 }
 <!-- Header Section Begin -->

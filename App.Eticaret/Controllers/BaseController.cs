@@ -1,5 +1,4 @@
 ﻿using App.Data.Entities;
-using App.Data.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -28,14 +27,35 @@ namespace App.Eticaret.Controllers
                 return null;
             }
 
-            var userRepo = GetService<DataRepository<UserEntity>>();
+            var clientFactory = GetService<IHttpClientFactory>();
 
-            if (userRepo == null)
+            if (clientFactory == null)
             {
                 return null;
             }
 
-            return await userRepo.GetByIdAsync(userId.Value);
+            var client = clientFactory.CreateClient("Api.Data");
+
+            if (client == null)
+            {
+                return null;
+            }
+
+            var response = await client.GetAsync($"api/user/{userId}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var user = await response.Content.ReadFromJsonAsync<UserEntity>();
+
+            if (user == null)
+            {
+                return null;
+            }
+
+            return user;
         }
 
         protected bool IsUserLoggedIn() => User.Identity?.IsAuthenticated ?? false;

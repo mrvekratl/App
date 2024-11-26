@@ -1,11 +1,9 @@
 ﻿using App.Data.Entities;
-using App.Data.Infrastructure;
 using App.Eticaret.Models.ViewModels;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Net.Mail;
 using System.Security.Claims;
@@ -13,14 +11,9 @@ using System.Security.Claims;
 namespace App.Eticaret.Controllers
 {
     [AllowAnonymous]
-    public class AuthController : BaseController
+    public class AuthController(IHttpClientFactory clientFactory) : BaseController
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-
-        public AuthController(IHttpClientFactory httpClientFactory)
-        {
-            _httpClientFactory = httpClientFactory;
-        }
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
 
         [Route("/register")]
         [HttpGet]
@@ -38,20 +31,28 @@ namespace App.Eticaret.Controllers
                 return View(newUser);
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
-
-            var response = await client.PostAsJsonAsync("api/auth/register", newUser);
-
-            if (response.IsSuccessStatusCode)
+            var user = new UserEntity
             {
-                ViewBag.SuccessMessage = "Kayıt işlemi başarılı. Giriş yapabilirsiniz.";
-                ModelState.Clear();
-                return View();
+                FirstName = newUser.FirstName,
+                LastName = newUser.LastName,
+                Email = newUser.Email,
+                Password = newUser.Password,
+                RoleId = 3,
+            };
+
+            var response = await Client.PostAsJsonAsync("api/user", user);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ModelState.AddModelError(string.Empty, "Kayıt işlemi başarısız. Lütfen tekrar deneyin.");
+                return View(newUser);
             }
 
-            var error = await response.Content.ReadAsStringAsync();
-            ModelState.AddModelError(string.Empty, $"Kayıt işlemi başarısız: {error}");
-            return View(newUser);
+            SetSuccessMessage("Kayıt işlemi başarılı. Giriş yapabilirsiniz.");
+
+            ModelState.Clear();
+
+            return View();
         }
 
         [Route("/login")]
@@ -70,42 +71,52 @@ namespace App.Eticaret.Controllers
                 return View(loginModel);
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
+            var response = await Client.PostAsJsonAsync("api/user/login", loginModel);
 
-            var response = await client.PostAsJsonAsync("api/auth/login", loginModel);
-
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                var user = await response.Content.ReadFromJsonAsync<UserEntity>();
-                await LogInAsync(user);
-                return RedirectToAction("Index", "Home");
+                ModelState.AddModelError(string.Empty, "Kullanıcı adı veya şifre hatalı.");
+                return View(loginModel);
             }
 
-            var error = await response.Content.ReadAsStringAsync();
-            ModelState.AddModelError(string.Empty, $"Giriş başarısız: {error}");
-            return View(loginModel);
+            var user = await response.Content.ReadFromJsonAsync<UserEntity>();
+
+            if (user == null)
+            {
+                ModelState.AddModelError(string.Empty, "Kullanıcı adı veya şifre hatalı.");
+                return View(loginModel);
+            }
+
+            await LogInAsync(user);
+
+            return RedirectToAction("Index", "Home");
         }
 
         private async Task LogInAsync(UserEntity user)
         {
-            if (user == null) return;
+            if (user == null)
+            {
+                return;
+            }
 
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new(ClaimTypes.Name, user.FirstName),
+                new(ClaimTypes.Surname, user.LastName),
                 new(ClaimTypes.Email, user.Email),
                 new(ClaimTypes.Role, user.Role.Name),
             };
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             var principal = new ClaimsPrincipal(identity);
-
-            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, new AuthenticationProperties
+            var authProperties = new AuthenticationProperties
             {
                 IsPersistent = true,
                 ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(30),
-            });
+            };
+
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProperties);
         }
 
         [Route("/forgot-password")]
@@ -124,73 +135,155 @@ namespace App.Eticaret.Controllers
                 return View(model);
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
+            var response = await Client.GetAsync("api/user");
 
-            var response = await client.PostAsJsonAsync("api/auth/forgot-password", model);
-
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                ViewBag.SuccessMessage = "Şifre sıfırlama maili gönderildi. Lütfen e-posta adresinizi kontrol edin.";
-                ModelState.Clear();
-                return View();
+                ModelState.AddModelError(string.Empty, "Kullanıcı bulunamadı.");
+                return View(model);
             }
 
-            var error = await response.Content.ReadAsStringAsync();
-            ModelState.AddModelError(string.Empty, $"Hata: {error}");
-            return View(model);
+            var users = await response.Content.ReadFromJsonAsync<List<UserEntity>>();
+
+            if (users == null)
+            {
+                ModelState.AddModelError(string.Empty, "Kullanıcı bulunamadı.");
+                return View(model);
+            }
+
+            var user = users.Find(u => u.Email == model.Email);
+
+            if (user == null)
+            {
+                ModelState.AddModelError(string.Empty, "Kullanıcı bulunamadı.");
+                return View(model);
+            }
+
+            // Şifre sıfırlama kodu oluşturulacak ve kullanıcıya mail gönderilecek...
+            await SendResetPasswordEmailAsync(user);
+
+            SetSuccessMessage("Şifre sıfırlama maili gönderildi. Lütfen e-posta adresinizi kontrol edin.");
+            ModelState.Clear();
+
+            return View();
+        }
+
+        private async Task SendResetPasswordEmailAsync(UserEntity user)
+        {
+            // Gönderici mail bilgileri güncellenmeli
+            const string host = "smtp.gmail.com";
+            const int port = 587;
+            const string from = "mail";
+            const string password = "şifre";
+
+            var resetPasswordToken = Guid.NewGuid().ToString("n");
+            user.ResetPasswordToken = resetPasswordToken;
+            var response = await Client.PutAsJsonAsync($"api/user/{user.Id}", user);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            using SmtpClient client = new(host, port)
+            {
+                Credentials = new NetworkCredential(from, password)
+            };
+
+            MailMessage mail = new()
+            {
+                From = new MailAddress(from),
+                Subject = "Şifre Sıfırlama",
+                Body = $"Merhaba {user.FirstName}, <br> Şifrenizi sıfırlamak için <a href='https://localhost:5001/renew-password/{user.ResetPasswordToken}'>tıklayınız</a>.",
+                IsBodyHtml = true,
+            };
+
+            mail.To.Add(user.Email);
+
+            await client.SendMailAsync(mail);
         }
 
         [Route("/renew-password/{verificationCode}")]
         [HttpGet]
         public async Task<IActionResult> RenewPassword([FromRoute] string verificationCode)
         {
-            if (string.IsNullOrEmpty(verificationCode))
+            if (!ModelState.IsValid || string.IsNullOrEmpty(verificationCode))
             {
                 return RedirectToAction(nameof(ForgotPassword));
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
-
-            var response = await client.GetAsync($"api/auth/renew-password/{verificationCode}");
-
-            if (response.IsSuccessStatusCode)
+            var response = await Client.GetAsync($"api/user/reset-password-token/{verificationCode}");
+            if (!response.IsSuccessStatusCode)
             {
+                ModelState.AddModelError(string.Empty, "Kullanıcı bulunamadı.");
                 return View();
             }
 
-            return RedirectToAction(nameof(ForgotPassword));
+            var user = await response.Content.ReadFromJsonAsync<UserEntity>();
+
+            if (user is null)
+            {
+                return RedirectToAction(nameof(ForgotPassword));
+            }
+
+            return View(new RenewPasswordViewModel
+            {
+                Email = user.Email,
+                Token = verificationCode,
+                Password = string.Empty,
+                ConfirmPassword = string.Empty,
+            });
         }
 
         [Route("/renew-password")]
         [HttpPost]
-        public async Task<IActionResult> RenewPassword([FromForm] object model)
+        public async Task<IActionResult> RenewPassword([FromForm] RenewPasswordViewModel renewPasswordModel)
         {
             if (!ModelState.IsValid)
             {
-                return View(model);
+                return View(renewPasswordModel);
             }
 
-            var client = _httpClientFactory.CreateClient("ApiClient");
-
-            var response = await client.PostAsJsonAsync("api/auth/renew-password", model);
-
-            if (response.IsSuccessStatusCode)
+            var response = await Client.GetAsync($"api/user/reset-password-token/{renewPasswordModel.Token}");
+            if (!response.IsSuccessStatusCode)
             {
-                ViewBag.SuccessMessage = "Şifreniz başarıyla sıfırlandı. Giriş yapabilirsiniz.";
-                return RedirectToAction(nameof(Login));
+                ModelState.AddModelError(string.Empty, "Kullanıcı bulunamadı.");
+                return View();
             }
 
-            var error = await response.Content.ReadAsStringAsync();
-            ModelState.AddModelError(string.Empty, $"Hata: {error}");
-            return View(model);
+            var user = await response.Content.ReadFromJsonAsync<UserEntity>();
+
+            if (user is null)
+            {
+                return RedirectToAction(nameof(ForgotPassword));
+            }
+
+            user.Password = renewPasswordModel.Password;
+            user.ResetPasswordToken = string.Empty;
+
+            response = await Client.PutAsJsonAsync($"api/user/{user.Id}", user);
+            if (!response.IsSuccessStatusCode)
+            {
+                ModelState.AddModelError(string.Empty, "Şifre yenilemede bir hatayla karşılaşıldı.");
+                return View();
+            }
+
+            SetSuccessMessage("Şifreniz başarıyla yenilendi. Giriş yapabilirsiniz.");
+            return View();
         }
 
         [Route("/logout")]
         [HttpGet]
         public async Task<IActionResult> Logout()
         {
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            await LogoutUser();
+
             return RedirectToAction(nameof(Login));
+        }
+
+        private async Task LogoutUser()
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         }
     }
 }

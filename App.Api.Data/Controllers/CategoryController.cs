@@ -1,9 +1,5 @@
-﻿using App.Api.Data.Models;
-using App.Api.Data.Models.ViewModels;
-using App.Data.Entities;
+﻿using App.Data.Entities;
 using App.Data.Infrastructure;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,113 +7,56 @@ namespace App.Api.Data.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "admin")]
-    public class CategoryController : ControllerBase
+    public class CategoryController(IDataRepository repo) : ControllerBase
     {
-        private readonly DataRepository<CategoryEntity> _categoryRepo;
-
-        public CategoryController(DataRepository<CategoryEntity> categoryRepo)
-        {
-            _categoryRepo = categoryRepo;
-        }
-
-        // GET: api/categories
         [HttpGet]
-        public async Task<IActionResult> GetCategories()
+        public async Task<IActionResult> Get()
         {
-            var categories = await _categoryRepo.GetAll()
-                .Select(c => new CategoryListViewModel
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Color = c.Color,
-                    IconCssClass = c.IconCssClass
-                })
-                .ToListAsync();
-
+            var categories = await repo.GetAll<CategoryEntity>().ToListAsync();
             return Ok(categories);
         }
 
-        // GET: api/categories/{id}
-        [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetCategoryById(int id)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> Get(int id)
         {
-            var category = await _categoryRepo.GetByIdAsync(id);
-            if (category == null)
+            var category = await repo.GetByIdAsync<CategoryEntity>(id);
+            if (category is null)
             {
                 return NotFound();
             }
 
-            var viewModel = new CategoryListViewModel
-            {
-                Id = category.Id,
-                Name = category.Name,
-                Color = category.Color,
-                IconCssClass = category.IconCssClass
-            };
-
-            return Ok(viewModel);
+            return Ok(category);
         }
 
-        // POST: api/categories
         [HttpPost]
-        public async Task<IActionResult> CreateCategory([FromBody] SaveCategoryViewModel newCategoryModel)
+        public async Task<IActionResult> Post([FromBody] CategoryEntity category)
         {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            var categoryEntity = new CategoryEntity
-            {
-                Name = newCategoryModel.Name,
-                Color = newCategoryModel.Color,
-                IconCssClass = newCategoryModel.IconCssClass
-            };
-
-            await _categoryRepo.AddAsync(categoryEntity);
-
-            return CreatedAtAction(nameof(GetCategoryById), new { id = categoryEntity.Id }, categoryEntity);
+            await repo.AddAsync(category);
+            return CreatedAtAction(nameof(Get), new { id = category.Id }, category);
         }
 
-        // PUT: api/categories/{id}
-        [HttpPut("{id:int}")]
-        public async Task<IActionResult> UpdateCategory(int id, [FromBody] SaveCategoryViewModel editCategoryModel)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Put(int id, [FromBody] CategoryEntity category)
         {
-            if (!ModelState.IsValid)
+            if (id != category.Id)
             {
-                return BadRequest(ModelState);
+                return BadRequest();
             }
 
-            var category = await _categoryRepo.GetByIdAsync(id);
-            if (category == null)
-            {
-                return NotFound();
-            }
-
-            category.Name = editCategoryModel.Name;
-            category.Color = editCategoryModel.Color;
-            category.IconCssClass = editCategoryModel.IconCssClass;
-
-            await _categoryRepo.UpdateAsync(category);
-
+            await repo.UpdateAsync(category);
             return NoContent();
         }
 
-        // DELETE: api/categories/{id}
-        [HttpDelete("{id:int}")]
-        public async Task<IActionResult> DeleteCategory(int id)
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
         {
-            var category = await _categoryRepo.GetByIdAsync(id);
-            if (category == null)
+            if (!await repo.GetAll<CategoryEntity>().AnyAsync(c => c.Id == id))
             {
                 return NotFound();
             }
 
-            await _categoryRepo.DeleteAsync(id);
-
+            await repo.DeleteAsync<CategoryEntity>(id);
             return NoContent();
         }
     }
 }
-

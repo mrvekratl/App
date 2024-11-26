@@ -1,26 +1,32 @@
 ﻿using App.Admin.Models.ViewModels;
 using App.Data.Entities;
-using App.Data.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace App.Admin.Controllers
 {
     [Route("/categories")]
     [Authorize(Roles = "admin")]
-    public class CategoryController : Controller
+    public class CategoryController(IHttpClientFactory clientFactory) : Controller
     {
-        private readonly HttpClient _httpClient;
-        public CategoryController(HttpClient httpClient)
-        {
-            _httpClient = httpClient;
-        }
+        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+
         [HttpGet]
         public async Task<IActionResult> List()
         {
-            var categories = await _httpClient.GetFromJsonAsync<List<CategoryListViewModel>>("api/categories");
-            return View(categories);
+            var response = await Client.GetAsync("api/category");
+
+            List<CategoryListViewModel> model = [];
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return View(model);
+            }
+
+            model = (await response.Content.ReadFromJsonAsync<List<CategoryListViewModel>>())
+                ?? [];
+
+            return View(model);
         }
 
         [Route("create")]
@@ -39,30 +45,53 @@ namespace App.Admin.Controllers
                 return View(newCategoryModel);
             }
 
-            var response = await _httpClient.PostAsJsonAsync("api/categories", newCategoryModel);
-
-            if (response.IsSuccessStatusCode)
+            var categoryEntity = new CategoryEntity
             {
-                ViewBag.SuccessMessage = "Kategori başarıyla oluşturuldu.";
-                ModelState.Clear();
-                return View();
+                Name = newCategoryModel.Name,
+                Color = newCategoryModel.Color,
+                IconCssClass = string.Empty,
+            };
+
+            var response = await Client.PostAsJsonAsync("api/category", categoryEntity);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ModelState.AddModelError(string.Empty, "Kategori oluşturulurken bir hata oluştu.");
+                return View(newCategoryModel);
             }
 
-            ViewBag.ErrorMessage = "Bir hata oluştu. Lütfen tekrar deneyin.";
-            return View(newCategoryModel);
+            ViewBag.SuccessMessage = "Kategori başarıyla oluşturuldu.";
+            ModelState.Clear();
+
+            return View();
         }
 
         [Route("{categoryId:int}/edit")]
         [HttpGet]
         public async Task<IActionResult> Edit([FromRoute] int categoryId)
         {
-            var category = await _httpClient.GetFromJsonAsync<SaveCategoryViewModel>($"api/categories/{categoryId}");
-            if (category == null)
+
+            var response = await Client.GetAsync($"api/category/{categoryId}");
+            if (!response.IsSuccessStatusCode)
             {
                 return NotFound();
             }
 
-            return View(category);
+            var category = await response.Content.ReadFromJsonAsync<CategoryEntity>();
+
+            if (category is null)
+            {
+                return NotFound();
+            }
+
+            var editCategoryModel = new SaveCategoryViewModel
+            {
+                Name = category.Name,
+                Color = category.Color,
+                IconCssClass = category.IconCssClass
+            };
+
+            return View(editCategoryModel);
         }
 
         [Route("{categoryId:int}/edit")]
@@ -74,31 +103,47 @@ namespace App.Admin.Controllers
                 return View(editCategoryModel);
             }
 
-            var response = await _httpClient.PutAsJsonAsync($"api/categories/{categoryId}", editCategoryModel);
-
-            if (response.IsSuccessStatusCode)
+            var response = await Client.GetAsync($"api/category/{categoryId}");
+            if (!response.IsSuccessStatusCode)
             {
-                ViewBag.SuccessMessage = "Kategori başarıyla güncellendi.";
-                ModelState.Clear();
+                return NotFound();
+            }
+
+            var category = await response.Content.ReadFromJsonAsync<CategoryEntity>();
+            if (category is null)
+            {
+                return NotFound();
+            }
+
+            category.Name = editCategoryModel.Name;
+            category.Color = editCategoryModel.Color;
+            category.IconCssClass = editCategoryModel.IconCssClass ?? string.Empty;
+
+            var updateResponse = await Client.PutAsJsonAsync($"api/category/{categoryId}", category);
+
+            if (!updateResponse.IsSuccessStatusCode)
+            {
+                ModelState.AddModelError(string.Empty, "Kategori güncellenirken bir hata oluştu.");
                 return View(editCategoryModel);
             }
 
-            ViewBag.ErrorMessage = "Bir hata oluştu. Lütfen tekrar deneyin.";
-            return View(editCategoryModel);
+            ViewBag.SuccessMessage = "Kategori başarıyla güncellendi.";
+            ModelState.Clear();
+
+            return View();
         }
 
         [Route("{categoryId:int}/delete")]
         [HttpGet]
         public async Task<IActionResult> Delete([FromRoute] int categoryId)
         {
-            var response = await _httpClient.DeleteAsync($"api/categories/{categoryId}");
+            var response = await Client.DeleteAsync($"api/category/{categoryId}");
 
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                return RedirectToAction(nameof(List));
+                return NotFound();
             }
 
-            ViewBag.ErrorMessage = "Silme işlemi başarısız oldu.";
             return RedirectToAction(nameof(List));
         }
     }
