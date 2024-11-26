@@ -7,14 +7,20 @@ namespace App.Admin.Controllers
 {
     [Authorize(Roles = "admin")]
     [Route("/users")]
-    public class UserController(IHttpClientFactory clientFactory) : Controller
+    public class UserController : Controller
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public UserController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
 
         [HttpGet]
         public async Task<IActionResult> List()
         {
-            var response = await Client.GetAsync("api/user");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync("api/user");
 
             List<UserListItemViewModel> users = [];
 
@@ -42,7 +48,8 @@ namespace App.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> ApproveSellerRequest([FromRoute] int id)
         {
-            var response = await Client.GetAsync($"api/user/{id}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"api/user/{id}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -63,8 +70,7 @@ namespace App.Admin.Controllers
 
             user.HasSellerRequest = false;
             user.RoleId = 2; // seller
-
-            var updateResponse = await Client.PutAsJsonAsync($"api/user/{id}", user);
+            var updateResponse = await client.PutAsJsonAsync($"api/user/{id}", user);
 
             if (!updateResponse.IsSuccessStatusCode)
             {
@@ -77,7 +83,8 @@ namespace App.Admin.Controllers
         [Route("/users/{id:int}/enable")]
         public async Task<IActionResult> Enable([FromRoute] int id)
         {
-            var response = await Client.GetAsync($"api/user/{id}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"api/user/{id}");
             if (!response.IsSuccessStatusCode)
             {
                 return NotFound();
@@ -92,7 +99,7 @@ namespace App.Admin.Controllers
 
             user.Enabled = true;
 
-            var updateResponse = await Client.PutAsJsonAsync($"api/user/{id}", user);
+            var updateResponse = await client.PutAsJsonAsync($"api/user/{id}", user);
 
             if (!updateResponse.IsSuccessStatusCode)
             {
@@ -105,7 +112,8 @@ namespace App.Admin.Controllers
         [Route("/users/{id:int}/disable")]
         public async Task<IActionResult> Disable([FromRoute] int id)
         {
-            var response = await Client.GetAsync($"api/user/{id}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"api/user/{id}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -121,7 +129,7 @@ namespace App.Admin.Controllers
 
             user.Enabled = false;
 
-            var updateResponse = await Client.PutAsJsonAsync($"api/user/{id}", user);
+            var updateResponse = await client.PutAsJsonAsync($"api/user/{id}", user);
 
             if (!updateResponse.IsSuccessStatusCode)
             {

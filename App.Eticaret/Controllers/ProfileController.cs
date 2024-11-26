@@ -5,9 +5,14 @@ using Microsoft.AspNetCore.Mvc;
 namespace App.Eticaret.Controllers
 {
     [Authorize(Roles = "seller, buyer")]
-    public class ProfileController(IHttpClientFactory clientFactory) : BaseController
+    public class ProfileController : BaseController
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public ProfileController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
 
         [HttpGet("/profile")]
         public async Task<IActionResult> Details()
@@ -18,8 +23,8 @@ namespace App.Eticaret.Controllers
             {
                 return RedirectToAction("Login", "Auth");
             }
-
-            var response = await Client.GetAsync($"/user/{userId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"/user/{userId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -70,8 +75,8 @@ namespace App.Eticaret.Controllers
             {
                 user.Password = editMyProfileModel.Password;
             }
-
-            var response = await Client.PutAsJsonAsync($"/user/{user.Id}", user);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PutAsJsonAsync($"/user/{user.Id}", user);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -93,8 +98,8 @@ namespace App.Eticaret.Controllers
             {
                 return RedirectToAction("Login", "Auth");
             }
-
-            var response = await Client.GetAsync($"/user/{userId}/orders");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"/user/{userId}/orders");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -116,8 +121,8 @@ namespace App.Eticaret.Controllers
             {
                 return RedirectToAction("Login", "Auth");
             }
-
-            var response = await Client.GetAsync($"/products?sellerId={userId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"/products?sellerId={userId}");
             if (!response.IsSuccessStatusCode)
             {
                 return RedirectToAction("Login", "Auth");

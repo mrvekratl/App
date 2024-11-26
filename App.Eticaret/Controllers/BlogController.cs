@@ -4,15 +4,21 @@ using Microsoft.AspNetCore.Mvc;
 namespace App.Eticaret.Controllers
 {
     [Route("blog")]
-    public class BlogController(IHttpClientFactory clientFactory) : BaseController
+    public class BlogController : BaseController
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public BlogController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
 
         [HttpGet]
         public async Task<IActionResult> Index()
         {
             // TODO: seed data in api project
-            var response = await Client.GetAsync("blog");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync("blog");
             if (!response.IsSuccessStatusCode)
             {
                 return StatusCode((int)response.StatusCode);
@@ -33,8 +39,8 @@ namespace App.Eticaret.Controllers
             {
                 return BadRequest();
             }
-
-            var response = await Client.GetAsync($"blog/{id}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"blog/{id}");
             if (!response.IsSuccessStatusCode)
             {
                 return StatusCode((int)response.StatusCode);

@@ -4,9 +4,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace App.Eticaret.Controllers
 {
-    public class HomeController(IHttpClientFactory clientFactory) : BaseController
+    public class HomeController : BaseController
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public HomeController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
+
 
         public IActionResult Index()
         {
@@ -40,8 +46,8 @@ namespace App.Eticaret.Controllers
                 Message = newContactMessage.Message,
                 SeenAt = null
             };
-
-            var response = await Client.PostAsJsonAsync("/contact-form", contactMessageEntity);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PostAsJsonAsync("/contact-form", contactMessageEntity);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -58,8 +64,8 @@ namespace App.Eticaret.Controllers
         public async Task<IActionResult> Listing()
         {
             // TODO: add paging support
-
-            var response = await Client.GetAsync("/products");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync("/products");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -74,8 +80,8 @@ namespace App.Eticaret.Controllers
         [HttpGet("/product/{productId:int}/details")]
         public async Task<IActionResult> ProductDetail([FromRoute] int productId)
         {
-
-            var response = await Client.GetAsync($"/products/{productId}/home");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"/products/{productId}/home");
 
             if (!response.IsSuccessStatusCode)
             {

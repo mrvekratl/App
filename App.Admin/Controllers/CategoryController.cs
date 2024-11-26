@@ -7,14 +7,21 @@ namespace App.Admin.Controllers
 {
     [Route("/categories")]
     [Authorize(Roles = "admin")]
-    public class CategoryController(IHttpClientFactory clientFactory) : Controller
+    public class CategoryController : Controller
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public CategoryController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
+
 
         [HttpGet]
         public async Task<IActionResult> List()
         {
-            var response = await Client.GetAsync("api/category");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync("api/category");
 
             List<CategoryListViewModel> model = [];
 
@@ -51,8 +58,8 @@ namespace App.Admin.Controllers
                 Color = newCategoryModel.Color,
                 IconCssClass = string.Empty,
             };
-
-            var response = await Client.PostAsJsonAsync("api/category", categoryEntity);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PostAsJsonAsync("api/category", categoryEntity);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -70,8 +77,8 @@ namespace App.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit([FromRoute] int categoryId)
         {
-
-            var response = await Client.GetAsync($"api/category/{categoryId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"api/category/{categoryId}");
             if (!response.IsSuccessStatusCode)
             {
                 return NotFound();
@@ -102,8 +109,8 @@ namespace App.Admin.Controllers
             {
                 return View(editCategoryModel);
             }
-
-            var response = await Client.GetAsync($"api/category/{categoryId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"api/category/{categoryId}");
             if (!response.IsSuccessStatusCode)
             {
                 return NotFound();
@@ -118,8 +125,8 @@ namespace App.Admin.Controllers
             category.Name = editCategoryModel.Name;
             category.Color = editCategoryModel.Color;
             category.IconCssClass = editCategoryModel.IconCssClass ?? string.Empty;
-
-            var updateResponse = await Client.PutAsJsonAsync($"api/category/{categoryId}", category);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var updateResponse = await client.PutAsJsonAsync($"api/category/{categoryId}", category);
 
             if (!updateResponse.IsSuccessStatusCode)
             {
@@ -137,7 +144,8 @@ namespace App.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Delete([FromRoute] int categoryId)
         {
-            var response = await Client.DeleteAsync($"api/category/{categoryId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.DeleteAsync($"api/category/{categoryId}");
 
             if (!response.IsSuccessStatusCode)
             {

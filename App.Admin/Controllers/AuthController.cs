@@ -10,9 +10,14 @@ namespace App.Admin.Controllers
 {
     [AllowAnonymous]
     [Route("/auth")]
-    public class AuthController(IHttpClientFactory clientFactory) : Controller
+    public class AuthController : Controller
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public AuthController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
 
         [Route("login")]
         [HttpGet]
@@ -29,8 +34,8 @@ namespace App.Admin.Controllers
             {
                 return View(loginModel);
             }
-
-            var response = await Client.PostAsJsonAsync("api/user/login", loginModel);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PostAsJsonAsync("api/user/login", loginModel);
 
             if (!response.IsSuccessStatusCode)
             {

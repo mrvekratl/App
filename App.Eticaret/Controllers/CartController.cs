@@ -6,9 +6,14 @@ using Microsoft.AspNetCore.Mvc;
 namespace App.Eticaret.Controllers
 {
     [Authorize(Roles = "buyer, seller")]
-    public class CartController(IHttpClientFactory clientFactory) : BaseController
+    public class CartController: BaseController
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public CartController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
 
         [HttpGet("/add-to-cart/{productId:int}")]
         public async Task<IActionResult> AddProduct([FromRoute] int productId)
@@ -19,8 +24,9 @@ namespace App.Eticaret.Controllers
             {
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
+            var client = _httpClientFactory.CreateClient("Api.Data");
 
-            var response = await Client.GetAsync($"/products/{productId}");
+            var response = await client.GetAsync($"/products/{productId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -33,8 +39,8 @@ namespace App.Eticaret.Controllers
             {
                 return NotFound();
             }
-
-            response = await Client.GetAsync($"/user/{userId}/cart/?productId={productId}");
+            
+            response = await client.GetAsync($"/user/{userId}/cart/?productId={productId}");
 
             if (response.IsSuccessStatusCode)
             {
@@ -54,7 +60,7 @@ namespace App.Eticaret.Controllers
                         CreatedAt = DateTime.UtcNow
                     };
 
-                    response = await Client.PostAsJsonAsync("/user/cart", cartItem);
+                    response = await client.PostAsJsonAsync("/user/cart", cartItem);
 
                     if (!response.IsSuccessStatusCode)
                     {
@@ -101,8 +107,9 @@ namespace App.Eticaret.Controllers
             {
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
+            var client = _httpClientFactory.CreateClient("Api.Data");
 
-            var response = await Client.GetAsync($"/user/{userId}/cart/{cartItemId}");
+            var response = await client.GetAsync($"/user/{userId}/cart/{cartItemId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -116,7 +123,7 @@ namespace App.Eticaret.Controllers
                 return NotFound();
             }
 
-            response = await Client.DeleteAsync($"/user/{userId}/cart/{cartItemId}");
+            response = await client.DeleteAsync($"/user/{userId}/cart/{cartItemId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -135,8 +142,9 @@ namespace App.Eticaret.Controllers
             {
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
+            var client = _httpClientFactory.CreateClient("Api.Data");
 
-            var response = await Client.GetAsync($"/user/{userId}/cart/{cartItemId}");
+            var response = await client.GetAsync($"/user/{userId}/cart/{cartItemId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -152,7 +160,7 @@ namespace App.Eticaret.Controllers
 
             cartItem.Quantity = quantity;
 
-            response = await Client.PutAsJsonAsync($"/user/{userId}/cart/{cartItemId}", cartItem);
+            response = await client.PutAsJsonAsync($"/user/{userId}/cart/{cartItemId}", cartItem);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -189,8 +197,9 @@ namespace App.Eticaret.Controllers
         private async Task<List<CartItemViewModel>> GetCartItemsAsync()
         {
             var userId = GetUserId() ?? -1;
+            var client = _httpClientFactory.CreateClient("Api.Data");
 
-            var response = await Client.GetAsync($"/user/{userId}/cart");
+            var response = await client.GetAsync($"/user/{userId}/cart");
 
             if (!response.IsSuccessStatusCode)
             {

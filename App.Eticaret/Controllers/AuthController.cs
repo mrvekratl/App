@@ -11,9 +11,14 @@ using System.Security.Claims;
 namespace App.Eticaret.Controllers
 {
     [AllowAnonymous]
-    public class AuthController(IHttpClientFactory clientFactory) : BaseController
+    public class AuthController : BaseController
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public AuthController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
 
         [Route("/register")]
         [HttpGet]
@@ -39,8 +44,8 @@ namespace App.Eticaret.Controllers
                 Password = newUser.Password,
                 RoleId = 3,
             };
-
-            var response = await Client.PostAsJsonAsync("api/user", user);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PostAsJsonAsync("api/user", user);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -70,8 +75,8 @@ namespace App.Eticaret.Controllers
             {
                 return View(loginModel);
             }
-
-            var response = await Client.PostAsJsonAsync("api/user/login", loginModel);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PostAsJsonAsync("api/user/login", loginModel);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -134,8 +139,8 @@ namespace App.Eticaret.Controllers
             {
                 return View(model);
             }
-
-            var response = await Client.GetAsync("api/user");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync("api/user");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -178,16 +183,19 @@ namespace App.Eticaret.Controllers
 
             var resetPasswordToken = Guid.NewGuid().ToString("n");
             user.ResetPasswordToken = resetPasswordToken;
-            var response = await Client.PutAsJsonAsync($"api/user/{user.Id}", user);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PutAsJsonAsync($"api/user/{user.Id}", user);
 
             if (!response.IsSuccessStatusCode)
             {
                 return;
             }
 
-            using SmtpClient client = new(host, port)
+            // SMTP istemcisi yapılandırması
+            using SmtpClient smtpClient = new(host, port)
             {
-                Credentials = new NetworkCredential(from, password)
+                Credentials = new NetworkCredential(from, password),
+                EnableSsl = true, // Gmail için SSL gereklidir
             };
 
             MailMessage mail = new()
@@ -200,7 +208,8 @@ namespace App.Eticaret.Controllers
 
             mail.To.Add(user.Email);
 
-            await client.SendMailAsync(mail);
+            // E-postayı gönderme
+            await smtpClient.SendMailAsync(mail);
         }
 
         [Route("/renew-password/{verificationCode}")]
@@ -211,8 +220,8 @@ namespace App.Eticaret.Controllers
             {
                 return RedirectToAction(nameof(ForgotPassword));
             }
-
-            var response = await Client.GetAsync($"api/user/reset-password-token/{verificationCode}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"api/user/reset-password-token/{verificationCode}");
             if (!response.IsSuccessStatusCode)
             {
                 ModelState.AddModelError(string.Empty, "Kullanıcı bulunamadı.");
@@ -243,8 +252,8 @@ namespace App.Eticaret.Controllers
             {
                 return View(renewPasswordModel);
             }
-
-            var response = await Client.GetAsync($"api/user/reset-password-token/{renewPasswordModel.Token}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"api/user/reset-password-token/{renewPasswordModel.Token}");
             if (!response.IsSuccessStatusCode)
             {
                 ModelState.AddModelError(string.Empty, "Kullanıcı bulunamadı.");
@@ -260,8 +269,8 @@ namespace App.Eticaret.Controllers
 
             user.Password = renewPasswordModel.Password;
             user.ResetPasswordToken = string.Empty;
-
-            response = await Client.PutAsJsonAsync($"api/user/{user.Id}", user);
+            
+            response = await client.PutAsJsonAsync($"api/user/{user.Id}", user);
             if (!response.IsSuccessStatusCode)
             {
                 ModelState.AddModelError(string.Empty, "Şifre yenilemede bir hatayla karşılaşıldı.");

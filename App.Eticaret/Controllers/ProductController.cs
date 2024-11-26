@@ -6,9 +6,14 @@ using Microsoft.AspNetCore.Mvc;
 namespace App.Eticaret.Controllers
 {
     [Route("/product")]
-    public class ProductController(IHttpClientFactory clientFactory) : BaseController
+    public class ProductController : BaseController
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public ProductController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
 
         [HttpGet("")]
         [Authorize(Roles = "seller")]
@@ -25,8 +30,8 @@ namespace App.Eticaret.Controllers
             {
                 return View(newProductModel);
             }
-
-            var response = await Client.PostAsJsonAsync("/product", newProductModel);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PostAsJsonAsync("/product", newProductModel);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -48,8 +53,8 @@ namespace App.Eticaret.Controllers
             {
                 return View();
             }
-
-            var response = await Client.GetAsync($"/product/{productId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"/product/{productId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -89,8 +94,8 @@ namespace App.Eticaret.Controllers
             {
                 return View(editProductModel);
             }
-
-            var response = await Client.GetAsync($"/product/{productId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"/product/{productId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -116,7 +121,7 @@ namespace App.Eticaret.Controllers
             productEntity.Description = editProductModel.Description;
             productEntity.StockAmount = editProductModel.StockAmount;
 
-            response = await Client.PutAsJsonAsync($"/product/{productId}", productEntity);
+            response = await client.PutAsJsonAsync($"/product/{productId}", productEntity);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -143,8 +148,8 @@ namespace App.Eticaret.Controllers
             {
                 return Unauthorized();
             }
-
-            var response = await Client.GetAsync($"/product/{productId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"/product/{productId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -163,7 +168,7 @@ namespace App.Eticaret.Controllers
                 return Forbid();
             }
 
-            response = await Client.DeleteAsync($"/product/{productId}");
+            response = await client.DeleteAsync($"/product/{productId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -190,8 +195,8 @@ namespace App.Eticaret.Controllers
             {
                 return BadRequest();
             }
-
-            var response = await Client.PostAsJsonAsync($"/products/{productId}/comment", newProductCommentModel);
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PostAsJsonAsync($"/products/{productId}/comment", newProductCommentModel);
 
             if (!response.IsSuccessStatusCode)
             {

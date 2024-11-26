@@ -6,9 +6,14 @@ using Microsoft.AspNetCore.Mvc;
 namespace App.Eticaret.Controllers
 {
     [Authorize(Roles = "buyer, seller")]
-    public class OrderController(IHttpClientFactory clientFactory) : BaseController
+    public class OrderController : BaseController
     {
-        private HttpClient Client => clientFactory.CreateClient("Api.Data");
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public OrderController(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
 
         [HttpPost("/order")]
         public async Task<IActionResult> Create([FromForm] CheckoutViewModel model)
@@ -25,8 +30,8 @@ namespace App.Eticaret.Controllers
                 var viewModel = await GetCartItemsAsync();
                 return View(viewModel);
             }
-
-            var response = await Client.PostAsJsonAsync("cart/checkout", new CheckoutRequest
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.PostAsJsonAsync("cart/checkout", new CheckoutRequest
             {
                 UserId = userId.Value,
                 Address = model.Address,
@@ -62,8 +67,8 @@ namespace App.Eticaret.Controllers
             {
                 return RedirectToAction(nameof(AuthController.Login), "Auth");
             }
-
-            var order = await Client.GetFromJsonAsync<OrderDetailsViewModel>($"order/{userId}/{orderCode}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var order = await client.GetFromJsonAsync<OrderDetailsViewModel>($"order/{userId}/{orderCode}");
 
             if (order is null)
             {
@@ -76,8 +81,8 @@ namespace App.Eticaret.Controllers
         private async Task<List<CartItemViewModel>> GetCartItemsAsync()
         {
             var userId = GetUserId() ?? -1;
-
-            var response = await Client.GetAsync($"cart/{userId}");
+            var client = _httpClientFactory.CreateClient("Api.Data");
+            var response = await client.GetAsync($"cart/{userId}");
 
             if (!response.IsSuccessStatusCode)
             {
