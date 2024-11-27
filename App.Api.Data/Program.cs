@@ -3,6 +3,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using App.Services;
+using App.Services.Abstract;
+using App.Services.Concrete;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +37,16 @@ builder.Services.AddAuthentication(options =>
         SignatureValidator = (token, parameters) => new JwtSecurityToken(token)
     };
 });
+
+// Add Dependency Injection 
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IProductCommentService, ProductCommentService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 var app = builder.Build();
 

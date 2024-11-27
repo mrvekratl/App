@@ -1,5 +1,6 @@
 ﻿using App.Admin.Models.ViewModels;
 using App.Data.Entities;
+using App.Services.Abstract;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,10 +11,12 @@ namespace App.Admin.Controllers
     public class CategoryController : Controller
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ICategoryService _categoryService;
 
-        public CategoryController(IHttpClientFactory httpClientFactory)
+        public CategoryController(IHttpClientFactory httpClientFactory, ICategoryService categoryService)
         {
             _httpClientFactory = httpClientFactory;
+            _categoryService = categoryService;
         }
 
 
@@ -125,7 +128,7 @@ namespace App.Admin.Controllers
             category.Name = editCategoryModel.Name;
             category.Color = editCategoryModel.Color;
             category.IconCssClass = editCategoryModel.IconCssClass ?? string.Empty;
-            var client = _httpClientFactory.CreateClient("Api.Data");
+            client = _httpClientFactory.CreateClient("Api.Data");
             var updateResponse = await client.PutAsJsonAsync($"api/category/{categoryId}", category);
 
             if (!updateResponse.IsSuccessStatusCode)

@@ -1,5 +1,6 @@
 ﻿using App.Data.Entities;
 using App.Eticaret.Models.ViewModels;
+using App.Services.Abstract;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -14,10 +15,12 @@ namespace App.Eticaret.Controllers
     public class AuthController : BaseController
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IAuthService _authService;
 
-        public AuthController(IHttpClientFactory httpClientFactory)
+        public AuthController(IHttpClientFactory httpClientFactory, IAuthService authService)
         {
             _httpClientFactory = httpClientFactory;
+            _authService = authService;
         }
 
         [Route("/register")]

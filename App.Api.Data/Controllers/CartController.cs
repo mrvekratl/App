@@ -3,8 +3,9 @@ using App.Data.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using App.Data.Infrastructure;
 
-namespace App.Data.Api.Controllers
+namespace App.Api.Data.Controllers
 {
     [ApiController]
     [Route("api/cart-items")]

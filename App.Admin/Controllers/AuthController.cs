@@ -1,5 +1,7 @@
 ﻿using App.Admin.Models.ViewModels;
 using App.Data.Entities;
+using App.Services.Abstract;
+using App.Services.Concrete;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -13,10 +15,12 @@ namespace App.Admin.Controllers
     public class AuthController : Controller
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IAuthService _authService;
 
-        public AuthController(IHttpClientFactory httpClientFactory)
+        public AuthController(IHttpClientFactory httpClientFactory, IAuthService authService)
         {
             _httpClientFactory = httpClientFactory;
+            _authService = authService;
         }
 
         [Route("login")]

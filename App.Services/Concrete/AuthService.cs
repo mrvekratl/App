@@ -20,6 +20,7 @@ namespace App.Services.Concrete
         public AuthService(IHttpClientFactory httpClientFactory)
         {
             _httpClient = httpClientFactory.CreateClient("AuthApi");
+
         }
 
         private async Task<HttpResponseMessage> SendApiRequestAsync(string apiRoute, HttpMethod method, string jwt = null, object payload = null)

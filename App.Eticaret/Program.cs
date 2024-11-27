@@ -1,3 +1,5 @@
+using App.Services.Abstract;
+using App.Services.Concrete;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +17,16 @@ builder.Services
     {
         options.LoginPath = "/login";
     });
+
+// Add Dependency Injection 
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IProductCommentService, ProductCommentService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 var app = builder.Build();
 
