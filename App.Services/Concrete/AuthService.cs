@@ -15,68 +15,81 @@ namespace App.Services.Concrete
 {
     public class AuthService : IAuthService
     {
-        private readonly HttpClient client;
+        private readonly HttpClient _httpClient;
 
         public AuthService(IHttpClientFactory httpClientFactory)
         {
-            client = httpClientFactory.CreateClient("DataApi");
+            _httpClient = httpClientFactory.CreateClient("AuthApi");
         }
 
-        public async Task<Result<AuthResponseDto>> RegisterAsync(RegisterRequestDto registerRequest)
+        private async Task<HttpResponseMessage> SendApiRequestAsync(string apiRoute, HttpMethod method, string jwt = null, object payload = null)
         {
-            var response = await SendApiRequestAsync("api/auth/register", HttpMethod.Post, null, registerRequest);
-            return await ProcessResponseAsync<AuthResponseDto>(response);
+            var httpRequestMessage = new HttpRequestMessage(method, apiRoute);
+
+            if (!string.IsNullOrEmpty(jwt))
+            {
+                httpRequestMessage.Headers.Add("Authorization", $"Bearer {jwt}");
+            }
+
+            if (payload != null)
+            {
+                httpRequestMessage.Content = JsonContent.Create(payload);
+            }
+
+            return await _httpClient.SendAsync(httpRequestMessage);
         }
 
-        public async Task<Result<AuthResponseDto>> LoginAsync(LoginRequestDto loginRequest)
+        public async Task<Result<LoginResponseDto>> LoginAsync(LoginRequestDto loginRequest)
         {
             var response = await SendApiRequestAsync("api/auth/login", HttpMethod.Post, null, loginRequest);
-            return await ProcessResponseAsync<AuthResponseDto>(response);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorMessage = await response.Content.ReadAsStringAsync();
+                return Result<LoginResponseDto>.Fail($"Login failed: {errorMessage}");
+            }
+
+            var loginResponse = await response.Content.ReadFromJsonAsync<LoginResponseDto>();
+            if (loginResponse == null)
+            {
+                return Result<LoginResponseDto>.Fail("Login response is null.");
+            }
+
+            return Result<LoginResponseDto>.Success(loginResponse);
+        }
+
+        public async Task<Result<RegisterResponseDto>> RegisterAsync(RegisterRequestDto registerRequest)
+        {
+            var response = await SendApiRequestAsync("api/auth/register", HttpMethod.Post, null, registerRequest);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorMessage = await response.Content.ReadAsStringAsync();
+                return Result<RegisterResponseDto>.Fail($"Registration failed: {errorMessage}");
+            }
+
+            var registerResponse = await response.Content.ReadFromJsonAsync<RegisterResponseDto>();
+            if (registerResponse == null)
+            {
+                return Result<RegisterResponseDto>.Fail("Registration response is null.");
+            }
+
+            return Result<RegisterResponseDto>.Success(registerResponse);
         }
 
         public async Task<Result> LogoutAsync(string jwt)
         {
             var response = await SendApiRequestAsync("api/auth/logout", HttpMethod.Post, jwt);
-            var result = await ProcessResponseAsync<AuthResponseDto>(response);
 
-            // AuthResponseDto'yu işlemek, sadece Result döndürmek için
-            if (!result.IsSuccess)
+            if (!response.IsSuccessStatusCode)
             {
-                return Result.Fail("Çıkış işlemi başarısız oldu.");
+                var errorMessage = await response.Content.ReadAsStringAsync();
+                return Result.Fail($"Logout failed: {errorMessage}");
             }
 
             return Result.Success();
         }
-
-
-
-        // JWT ile istek göndermek için yardımcı metot
-        private async Task<HttpResponseMessage> SendApiRequestAsync(string apiRoute, HttpMethod method, string jwt, object payload = null)
-        {
-            var httpRequestMessage = new HttpRequestMessage(method, apiRoute)
-            {
-                Headers = { { HeaderNames.Authorization, $"Bearer {jwt}" } }
-            };
-            if (payload is not null)
-            {
-                httpRequestMessage.Content = JsonContent.Create(payload);
-            }
-
-            return await client.SendAsync(httpRequestMessage);
-        }
-
-        private async Task<Result<T>> ProcessResponseAsync<T>(HttpResponseMessage response)
-        {
-            if (!response.IsSuccessStatusCode)
-            {
-                // Erken dönüşler
-                return Result.Fail<T>("Bir hata oluştu");
-            }
-
-            var data = await response.Content.ReadFromJsonAsync<T>();
-            return Result.Success(data);
-        }
-
     }
+
 
 }

@@ -10,8 +10,8 @@ namespace App.Services.Abstract
 {
     public interface IAuthService
     {
-        Task<Result<AuthResponseDto>> RegisterAsync(RegisterRequestDto registerRequest);
-        Task<Result<AuthResponseDto>> LoginAsync(LoginRequestDto loginRequest);
+        Task<Result<LoginResponseDto>> LoginAsync(LoginRequestDto loginRequest);
+        Task<Result<RegisterResponseDto>> RegisterAsync(RegisterRequestDto registerRequest);
         Task<Result> LogoutAsync(string jwt);
     }
 }

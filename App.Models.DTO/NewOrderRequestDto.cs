@@ -6,31 +6,46 @@ using System.Threading.Tasks;
 
 namespace App.Models.DTO
 {
-    public class NewOrderRequestDto
+    // NewOrderRequestDto.cs
+    namespace App.Models.DTO
     {
-        public List<NewOrderItemDto> Items { get; set; }
-        public string DeliveryAddress { get; set; }
+        public class NewOrderRequestDto
+        {
+            public List<OrderItemDto> Items { get; set; }
+            public string DeliveryAddress { get; set; }
+        }
     }
 
-    public class NewOrderItemDto
+    // OrderItemDto.cs
+    namespace App.Models.DTO
     {
-        public int ProductId { get; set; }
-        public byte Quantity { get; set; }
+        public class OrderItemDto
+        {
+            public int ProductId { get; set; }
+            public int Quantity { get; set; }
+        }
     }
 
-    public class NewOrderResponseDto
+    // NewOrderResponseDto.cs
+    namespace App.Models.DTO
     {
-        public int OrderId { get; set; }
+        public class NewOrderResponseDto
+        {
+            public int OrderId { get; set; }
+        }
     }
 
-    public class MyOrdersResponseDto
+    // OrderDetailsDto.cs
+    namespace App.Models.DTO
     {
-        public List<OrderDto> Orders { get; set; }
+        public class OrderDetailsDto
+        {
+            public int OrderId { get; set; }
+            public List<OrderItemDto> Items { get; set; }
+            public decimal TotalPrice { get; set; }
+            public string DeliveryAddress { get; set; }
+        }
     }
 
-    public class MyOrderDetailResponseDto
-    {
-        public OrderDetailDto OrderDetail { get; set; }
-    }
 
 }

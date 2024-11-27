@@ -1,4 +1,5 @@
-﻿using Ardalis.Result;
+﻿using App.Models.DTO;
+using Ardalis.Result;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ namespace App.Services.Abstract
 {
     public interface IProfileService
     {
-        Task<Result<ProfileResponseDto>> GetProfileAsync(string jwt);
-        Task<Result> RequestSellerApprovalAsync(string jwt);
+        Task<Result<UserProfileDto>> GetProfileAsync(string jwt);
+        Task<Result> UpdateProfileAsync(string jwt, UserProfileDto profileDto);
     }
 }

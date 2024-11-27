@@ -6,31 +6,45 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using App.Models.DTO;
+using System.Net.Http.Json;
 
 namespace App.Services.Concrete
 {
     public class ProfileService : IProfileService
     {
-        private readonly HttpClient client;
+        private readonly HttpClient _client;
 
         public ProfileService(IHttpClientFactory httpClientFactory)
         {
-            client = httpClientFactory.CreateClient("DataApi");
+            _client = httpClientFactory.CreateClient("ProfileApi");
         }
 
-        public async Task<Result<ProfileResponseDto>> GetProfileAsync(string jwt)
+        public async Task<Result<UserProfileDto>> GetProfileAsync(string jwt)
         {
-            var response = await SendApiRequestAsync("api/profile", HttpMethod.Get, jwt);
-            return await ProcessResponseAsync<ProfileResponseDto>(response);
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/profile");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                return Result.Error("Failed to fetch profile");
+            }
+            var profile = await response.Content.ReadFromJsonAsync<UserProfileDto>();
+            return (Result<UserProfileDto>)Result.Success(profile);
         }
 
-        public async Task<Result> UpdateProfileAsync(string jwt, UpdateProfileRequestDto updateProfileRequest)
+        public async Task<Result> UpdateProfileAsync(string jwt, UserProfileDto profileDto)
         {
-            var response = await SendApiRequestAsync("api/profile", HttpMethod.Put, jwt, updateProfileRequest);
-            return await ProcessResponseAsync(response);
-        }
+            var request = new HttpRequestMessage(HttpMethod.Put, "api/profile")
+            {
+                Content = JsonContent.Create(profileDto)
+            };
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jwt);
 
-        // Diğer servisler için yardımcı metodlar burada olabilir
+            var response = await _client.SendAsync(request);
+            return response.IsSuccessStatusCode ? Result.Success() : Result.Error("Failed to update profile");
+        }
     }
+
 
 }
